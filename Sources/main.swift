@@ -31,6 +31,59 @@ router.get("/") {
   try response.render("home", context: ["files": visibleFilenames])
 }
 
+router.post("/upload") {
+  request, response, next in
+  defer { next() }
+
+  //pull out the multi-part encoded form data
+  guard let values = request.body else { return }
+  guard case .multipart(let parts) = values else { return }
+
+  //create an array of the file types we're willing to accept
+  let acceptableTypes = ["image/png", "image/jpeg"]
+
+  for part in parts {
+      //ensure this image is one of the valid types
+      guard acceptableTypes.contains(part.type) else { continue }
+
+      //attempt to extract its data; move onto the next part if it fails
+      guard case .raw(let data) = part.body else { continue }
+
+      //replace any spaces in filenames with a dash
+      let cleanedFileName = part.filename.replacingOccurrences(of: " ", with: "-")
+
+      //convert that into a URL we can write to
+      let newURL = originalsDirectory.appendingPathComponent(cleanedFileName)
+
+      //write the full-size original image
+      _ = try? data.write(to: newURL)
+
+      //create a matching URL in the thumbnails directory
+      let thumbURL = thumbsDirectory.appendingPathComponent(cleanedFileName)
+
+      //attempt to load the original into a SwiftGD image
+      if let image = Image(url: newURL) {
+        //attempt to resize that down to a thumbnail
+        if let resized = image.resizedTo(width: 300) {
+          // it worked - save it!
+          resized.write(to: thumbURL)
+      }
+    }
+  }
+//reload the message
+try response.redirect("/")
+
+}
+
+
+
+
+
+
+
+
+
+
 
 
 Kitura.addHTTPServer(onPort: 8090, with: router)
